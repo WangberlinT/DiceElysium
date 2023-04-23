@@ -4,6 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -15,8 +18,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tiki.diceelysium.model.Dice
@@ -25,8 +32,8 @@ import com.tiki.diceelysium.ui.widgets.D6Dice
 import com.tiki.diceelysium.ui.widgets.ScrollableBackground
 import com.tiki.diceelysium.ui.widgets.SuccessEffect
 import com.tiki.diceelysium.viewmodel.DiceViewModel
-import kotlin.math.ceil
-import kotlin.math.sqrt
+import kotlinx.coroutines.launch
+import kotlin.math.*
 
 class DiceActivity : ComponentActivity() {
     private val viewModel: DiceViewModel by viewModels()
@@ -66,22 +73,20 @@ fun DiceScreen(viewModel: DiceViewModel = viewModel()) {
                 .align(Alignment.TopCenter),
             movement = uiState.backgroundMovement
         )
-        if (!uiState.isRolling) {
+        AnimatedVisibility(
+            visible = !uiState.isRolling,
+            enter = EnterTransition.None,
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .dragToRelease {
+                    viewModel.rollDices()
+                }
+        ) {
             DicesGrid(
                 dices = uiState.dices,
-                isRolling = false,
-                modifier = Modifier.align(Alignment.Center)
+                isRolling = false
             )
-        }
-        Button(
-            onClick = {
-                viewModel.rollDices()
-            },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(80.dp)
-        ) {
-            Text(text = "visible: ${uiState.visible}")
         }
         PanelButton(
             modifier = Modifier
@@ -113,6 +118,7 @@ fun DicesGrid(
     val width = colum * (diceSize + padding*2)
 
     LazyVerticalGrid(
+        userScrollEnabled = false,
         columns = GridCells.Fixed(colum),
         modifier = modifier
             .width(width.dp)
@@ -151,4 +157,29 @@ fun PanelButton(
             Text(text = "+")
         }
     }
+}
+
+fun Modifier.dragToRelease(
+    maxOffsetY: Dp = 100.dp,
+    onRelease: () -> Unit
+): Modifier = composed {
+    val offsetY = remember { Animatable(0f, Float.VectorConverter) }
+    val scope = rememberCoroutineScope()
+    pointerInput(Unit) {
+        detectDragGestures(
+            onDragEnd = {
+                scope.launch { offsetY.animateTo(0f) }
+                onRelease()
+            }
+        ) { change, dragAmount ->
+            if (dragAmount.y <= 0f) return@detectDragGestures
+            change.consume()
+            scope.launch {
+                val target = min(offsetY.value + dragAmount.y, maxOffsetY.toPx())
+                offsetY.snapTo(target)
+            }
+        }
+
+    }
+    .offset { IntOffset(0, offsetY.value.roundToInt()) }
 }

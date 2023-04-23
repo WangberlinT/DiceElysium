@@ -20,7 +20,7 @@ class DiceViewModel : ViewModel(){
 
 
     fun rollDices() = viewModelScope.launch {
-        val rollingDurationMs = 2000L
+        val rollingDurationMs = 1000L
         val confirmDurationMs = 1000L
         _diceUIState.update { currentState ->
             currentState.copy(
